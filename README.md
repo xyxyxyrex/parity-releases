@@ -19,7 +19,7 @@ Installed Parity versions check for updates automatically. No GitHub account or 
 
 ## Updating older installations
 
-v1.5.8 changes the update feed to this repository. Existing installations can receive v1.5.8 through the previous feed during the transition. If an older installation can no longer check for updates, download and install the latest installer from this repository. Keep your normal installation destination; the installer preserves application data.
+v1.5.8 changes the update feed to this repository. The original source repository is now private. Installations older than v1.5.8 must download and install the latest installer from this repository or the website. Keep your normal installation destination; the installer preserves application data. v1.5.8 and newer installations receive updates from this public repository.
 
 ## Repository contents
 
