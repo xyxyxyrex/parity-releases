@@ -1,6 +1,8 @@
 # Parity
 
-Parity is a desktop workspace for capturing websites, comparing implementations with designs, editing elements, running audits, and organizing evidence-based QA findings.
+Parity is a desktop workspace for capturing and editing websites, technical SEO crawling, search performance insights, visual regression and collaborative QA reviews.
+
+**Latest: v1.6.3** adds dedicated Crawl and Search Insights workspaces, a new Home, reusable workspace invitations and Geist typography. Read the [release notes](RELEASE_NOTES_1.6.3.md).
 
 - [Download the latest Windows installer](https://github.com/xyxyxyrex/parity-releases/releases/latest)
 - [Website and setup instructions](https://parity-gfx.pages.dev)
