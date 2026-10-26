@@ -1,5 +1,12 @@
 # Parity 1.6.3
 
+Installer rebuild, October 26: removed an unused Python comparison executable.
+Visual comparisons continue to use Parity's bundled Electron worker. The rebuilt
+installer and unpacked app are checked with Microsoft Defender before publication.
+This does not establish that the detection reported on another PC is resolved;
+the installer remains unsigned. Existing 1.6.3 installations do not automatically
+update to another build with the same version number.
+
 Parity 1.6.3 adds dedicated Crawl and Search Insights workspaces, a new Home,
 and clearer navigation and collaboration controls.
 
