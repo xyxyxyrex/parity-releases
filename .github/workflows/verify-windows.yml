@@ -1,0 +1,43 @@
+name: Verify Parity 1.6.5 Windows installer
+on:
+  push:
+    branches: [verify/1.6.5-windows]
+permissions: {}
+jobs:
+  install:
+    runs-on: windows-2025
+    timeout-minutes: 25
+    permissions:
+      contents: write # GitHub requires draft release read access for the candidate download.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Download and verify the two installers
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          foreach ($version in @('1.6.4','1.6.5')) {
+            gh release download "v$version" --repo $env:GITHUB_REPOSITORY --pattern "Parity-Setup-$version.exe" --dir $env:RUNNER_TEMP
+          }
+          $hashes = @{
+            '1.6.4' = '1b5e85ce5cbd3c326fe5c1ceb36ec7347bc2f1042c598490ed550ecd2ecfeacd'
+            '1.6.5' = 'd0fc17e83b2dd575831e85d315ca2c0899cf3098c34dd88e4b05b78142e8c322'
+          }
+          foreach ($version in $hashes.Keys) {
+            $file = Join-Path $env:RUNNER_TEMP "Parity-Setup-$version.exe"
+            if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $hashes[$version]) { throw "Unexpected installer hash for $version" }
+          }
+      - name: Verify Windows lifecycle
+        shell: pwsh
+        run: ./verify-windows.ps1
+      - name: Retain acceptance record
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: parity-1.6.5-windows-lifecycle
+          path: ${{ runner.temp }}/parity-lifecycle.json
+          if-no-files-found: warn
