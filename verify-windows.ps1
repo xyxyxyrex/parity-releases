@@ -9,7 +9,8 @@ $markerText = 'The installer must preserve this existing profile file.'
 $results = [ordered]@{
   image = $env:ImageVersion
   windows = [Environment]::OSVersion.VersionString
-  candidateSha256 = 'd0fc17e83b2dd575831e85d315ca2c0899cf3098c34dd88e4b05b78142e8c322'
+  candidateSha256 = $env:PARITY_CANDIDATE_SHA256
+  nativeNoticesSha256 = $env:PARITY_NATIVE_NOTICES_SHA256
   checks = [Collections.Generic.List[string]]::new()
 }
 
@@ -42,7 +43,13 @@ function Confirm-Collector {
     $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath (Join-Path $collector $archive.path)).Hash
     if ($hash -ne $archive.sha256) { throw "Installed source archive failed validation: $($archive.filename)" }
   }
-  $null = Get-Content -LiteralPath (Join-Path $collector 'THIRD-PARTY-NOTICES.txt') -TotalCount 1
+  $notices = Join-Path $collector 'THIRD-PARTY-NOTICES.txt'
+  if ((Get-FileHash -LiteralPath $notices -Algorithm SHA256).Hash -ne $env:PARITY_NATIVE_NOTICES_SHA256) {
+    throw 'Installed third-party notices differ from the reviewed file'
+  }
+  $noticeInventory = Get-Content -LiteralPath (Join-Path $collector 'notice-inventory.json') -Raw | ConvertFrom-Json
+  $noticeCount = ($noticeInventory.nativeComponentNotices.components.notices | Measure-Object).Count
+  if ($noticeCount -ne 12) { throw "Expected twelve additional native notices, found $noticeCount" }
   & (Join-Path $runtime 'python.exe') -I -B -c "import importlib.metadata as m; from scrapling.fetchers import FetcherSession, StealthySession; assert m.version('scrapling') == '0.5.1'"
   if ($LASTEXITCODE -ne 0) { throw 'Installed Scrapling import failed' }
 }

@@ -7,6 +7,9 @@ jobs:
   install:
     runs-on: windows-2025
     timeout-minutes: 25
+    env:
+      PARITY_CANDIDATE_SHA256: '3f5e5e2fa36da2a0dc1096c46345862b9b777f5aff2b00b6d7d82531db5e775a'
+      PARITY_NATIVE_NOTICES_SHA256: '08d2b1e1e50b6aac48000e385d4becb141aaf91040016ea9c314c0b89b889a4b'
     permissions:
       contents: write # GitHub requires draft release read access for the candidate download.
     steps:
@@ -25,7 +28,7 @@ jobs:
           }
           $hashes = @{
             '1.6.4' = '1b5e85ce5cbd3c326fe5c1ceb36ec7347bc2f1042c598490ed550ecd2ecfeacd'
-            '1.6.5' = 'd0fc17e83b2dd575831e85d315ca2c0899cf3098c34dd88e4b05b78142e8c322'
+            '1.6.5' = $env:PARITY_CANDIDATE_SHA256
           }
           foreach ($version in $hashes.Keys) {
             $file = Join-Path $env:RUNNER_TEMP "Parity-Setup-$version.exe"
