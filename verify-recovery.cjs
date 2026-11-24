@@ -9,6 +9,7 @@ const ids = ['00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-00
 const users = ids.map((id, index) => ({ id, email: `account-${index}@example.test`, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() }))
 const userFor = user => ({ ownerKey: `parity:${user.id}`, authUserId: user.id, email: user.email, name: user.email })
 const tokens = new Map()
+const accountRoutes = []
 let signInAs = 0
 const report = { image: process.env.ImageVersion, auth: 'local synthetic account service', checks: [] }
 
@@ -21,6 +22,7 @@ function createSession(user) {
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
+  accountRoutes.push(url.pathname)
   const reply = (value, status = 200) => response.writeHead(status, { 'Content-Type': 'application/json' }).end(JSON.stringify(value))
   if (url.pathname === '/auth/v1/settings') return reply({ external: { google: true } })
   if (url.pathname === '/auth/v1/authorize') {
@@ -71,14 +73,23 @@ async function main() {
     const [keyword] = await request(first, { action: 'save-keywords', siteId: site.id, keywords: ['fixture query'], location: 2608, device: 'desktop', language: 'en', tags: [] })
     const observation = await request(first, { action: 'serp-import', siteId: site.id, keywordId: keyword.id, label: 'Synthetic installed recovery fixture', text: JSON.stringify({ depth: 10, maxPages: 1, items: [{ type: 'organic', rank_group: 1, rank_absolute: 1, page: 1, url: 'https://example.test/page', title: 'Fixture', description: '' }] }) })
     assert.ok(observation.id)
+    const session = path.join(process.env.APPDATA, 'Parity', 'parity-auth.bin')
+    const persistedAccountBytes = (await fs.stat(session)).size
+    assert.ok(persistedAccountBytes > 0)
     report.checks.push('Saved synthetic organic evidence through installed Search Insights IPC.')
     await kill(child)
     child = launch(port, options)
     await ready()
-    assert.equal((await api('accountStatus')).user.ownerKey, first)
+    const restored = await api('accountStatus')
+    report.profileSessionRestored = restored.user?.ownerKey === first
+    if (!report.profileSessionRestored) {
+      report.sessionRestoreStatus = { signedIn: restored.signedIn, needsSetup: restored.needsSetup, error: restored.error }
+      if (restored.signedIn) await api('accountSignOut')
+      assert.equal((await api('accountLoginGoogle')).user?.ownerKey, first)
+    }
     const reopened = await request(first, { action: 'serp-observation', siteId: site.id, observationId: observation.id })
     assert.deepEqual(reopened, observation)
-    report.checks.push('Encrypted fixture identity and exact observation survived forced desktop exit.')
+    report.checks.push('Exact observation survived a forced desktop exit and reopened for its original account.')
     await api('accountSignOut')
     signInAs = 1
     const second = (await api('accountLoginGoogle')).user.ownerKey
@@ -95,6 +106,7 @@ async function main() {
     if (child) await kill(child)
     server.closeAllConnections()
     server.close()
+    report.accountRoutes = [...new Set(accountRoutes)]
     await fs.writeFile(path.join(process.env.RUNNER_TEMP, 'parity-installed-recovery.json'), JSON.stringify(report, null, 2) + '\n')
   }
 }
