@@ -28,13 +28,7 @@ async function until(action, description, timeout = 60_000) {
 }
 
 function launch(port) {
-  const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
-  for (const stream of [child.stdout, child.stderr]) stream.on('data', data => {
-    for (const line of data.toString().split(/\r?\n/)) {
-      if (/install|updat|elevat|spaw[nw]/i.test(line) && !/token|authorization|credential|password/i.test(line))
-        console.log(line.replace(/https?:\/\/\S+/g, '[url]').slice(0, 300))
-    }
-  })
+  const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], { windowsHide: true, stdio: 'ignore' })
   kids.add(child)
   child.once('exit', () => kids.delete(child))
   child.once('error', () => kids.delete(child))
@@ -101,13 +95,15 @@ async function main() {
     assert.equal(downloaded.state, 'downloaded', JSON.stringify(downloaded))
     assert.ok(requests.includes('/latest.yml') && requests.includes('/Parity-Setup-1.6.5.exe'))
     report.checkResults.push('Installed app discovered and downloaded exact 1.6.5 bytes via a loopback feed.')
+    console.log(report.checkResults.join('\n'))
     const acceptedInstall = await evaluate(39319, 'window.electronAPI.installUpdate()').catch(error => {
       if (!error.message.includes('connection closed')) throw error
     })
     if (acceptedInstall) assert.equal(acceptedInstall.success, true, JSON.stringify(acceptedInstall))
     await until(() => original.exitCode !== null, '1.6.4 exits to run the updater')
+    console.log('1.6.4 exited after the install request.')
     const installed = path.join(location, 'resources/search-insights-collector/THIRD-PARTY-NOTICES.txt')
-    await until(async () => createHash('sha256').update(await fs.readFile(installed)).digest('hex') === process.env.PARITY_NATIVE_NOTICES_SHA256, '1.6.5 installer finishes', 210_000)
+    await until(async () => createHash('sha256').update(await fs.readFile(installed)).digest('hex') === process.env.PARITY_NATIVE_NOTICES_SHA256, '1.6.5 installer finishes', 100_000)
     await until(async () => (await fs.readFile(path.join(location, 'resources/app-update.yml'), 'utf8')).includes('repo: parity-releases'), 'public feed restored by installed 1.6.5')
     assert.equal(await fs.readFile(marker, 'utf8'), 'persisted profile')
     report.checkResults.push('Updater installed 1.6.5, restored the shipped public feed and preserved the profile marker.')
@@ -133,4 +129,4 @@ async function main() {
   }
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1 })
+main().then(() => process.exit(0), error => { console.error(error); process.exit(1) })
