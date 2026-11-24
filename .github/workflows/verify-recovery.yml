@@ -1,0 +1,40 @@
+name: Verify Parity 1.6.5 installed Search Insights recovery
+on:
+  push:
+    branches: [verify/1.6.5-recovery]
+    paths: [verify-recovery.cjs, .github/workflows/verify-recovery.yml]
+permissions: {}
+jobs:
+  recovery:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    permissions:
+      contents: write # Required to read the existing draft release assets.
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Download and verify installer
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          gh release download v1.6.5 --repo $env:GITHUB_REPOSITORY --pattern Parity-Setup-1.6.5.exe --dir $env:RUNNER_TEMP
+          $file = Join-Path $env:RUNNER_TEMP 'Parity-Setup-1.6.5.exe'
+          if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne '3f5e5e2fa36da2a0dc1096c46345862b9b777f5aff2b00b6d7d82531db5e775a') { throw 'Unexpected draft installer' }
+      - name: Install Parity on the fresh runner
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP 'Parity Recovery Test'
+          $process = Start-Process -WindowStyle Hidden -Wait -PassThru -FilePath (Join-Path $env:RUNNER_TEMP 'Parity-Setup-1.6.5.exe') -ArgumentList "/S /D=$dir"
+          if ($process.ExitCode -ne 0) { throw "NSIS exited with $($process.ExitCode)" }
+      - name: Verify restart and account isolation
+        run: node verify-recovery.cjs
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: parity-1.6.5-installed-recovery
+          path: ${{ runner.temp }}/parity-installed-recovery.json
+          if-no-files-found: warn

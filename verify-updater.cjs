@@ -27,8 +27,11 @@ async function until(action, description, timeout = 60_000) {
   throw Error(`Timed out: ${description}${lastError ? ` (${lastError})` : ''}`)
 }
 
-function launch(port) {
-  const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+function launch(port, settings = {}) {
+  const child = spawn(settings.executable ?? exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], {
+    env: settings.env ?? process.env,
+    windowsHide: true, stdio: ['ignore', 'pipe', 'pipe']
+  })
   for (const stream of [child.stdout, child.stderr]) stream.on('data', data => {
     for (const line of data.toString().split(/\r?\n/)) {
       if (/install|updat|elevat|spaw[nw]/i.test(line) && !/token|authorization|credential|password/i.test(line))
@@ -133,4 +136,5 @@ async function main() {
   }
 }
 
-main().catch(error => { console.error(error); process.exitCode = 1 })
+module.exports = { evaluate, launch, until }
+if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1 })
