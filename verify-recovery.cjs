@@ -73,6 +73,8 @@ async function main() {
     const [keyword] = await request(first, { action: 'save-keywords', siteId: site.id, keywords: ['fixture query'], location: 2608, device: 'desktop', language: 'en', tags: [] })
     const observation = await request(first, { action: 'serp-import', siteId: site.id, keywordId: keyword.id, label: 'Synthetic installed recovery fixture', text: JSON.stringify({ depth: 10, maxPages: 1, items: [{ type: 'organic', rank_group: 1, rank_absolute: 1, page: 1, url: 'https://example.test/page', title: 'Fixture', description: '' }] }) })
     assert.ok(observation.id)
+    const readObservation = owner => request(owner, { action: 'serp-observation', siteId: site.id, observationId: observation.id })
+    const before = await readObservation(first)
     const session = path.join(process.env.APPDATA, 'Parity', 'parity-auth.bin')
     const persistedAccountBytes = (await fs.stat(session)).size
     assert.ok(persistedAccountBytes > 0)
@@ -87,15 +89,14 @@ async function main() {
       if (restored.signedIn) await api('accountSignOut')
       assert.equal((await api('accountLoginGoogle')).user?.ownerKey, first)
     }
-    const reopened = await request(first, { action: 'serp-observation', siteId: site.id, observationId: observation.id })
-    assert.deepEqual(reopened, observation)
+    assert.deepEqual(await readObservation(first), before)
     report.checks.push('Exact observation survived a forced desktop exit and reopened for its original account.')
     await api('accountSignOut')
     signInAs = 1
     const second = (await api('accountLoginGoogle')).user.ownerKey
     assert.equal(second, userFor(users[1]).ownerKey)
-    await assert.rejects(request(first, { action: 'serp-observation', siteId: site.id, observationId: observation.id }))
-    await assert.rejects(request(second, { action: 'serp-observation', siteId: site.id, observationId: observation.id }))
+    await assert.rejects(readObservation(first))
+    await assert.rejects(readObservation(second))
     report.checks.push('Switched to a second fixture account and refused both stale-owner and cross-account evidence access.')
     report.result = 'passed'
   } catch (error) {
