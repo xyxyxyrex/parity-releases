@@ -29,7 +29,7 @@ async function until(action, description, timeout = 60_000) {
 }
 
 function launch(port) {
-  const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], { windowsHide: true, stdio: 'ignore' })
+  const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], { windowsHide: false, stdio: 'ignore' })
   kids.add(child)
   child.once('exit', () => kids.delete(child))
   child.once('error', () => kids.delete(child))
