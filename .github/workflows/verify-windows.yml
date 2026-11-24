@@ -26,6 +26,7 @@ jobs:
           foreach ($version in @('1.6.4','1.6.5')) {
             gh release download "v$version" --repo $env:GITHUB_REPOSITORY --pattern "Parity-Setup-$version.exe" --dir $env:RUNNER_TEMP
           }
+          gh release download v1.6.5 --repo $env:GITHUB_REPOSITORY --pattern latest.yml --dir $env:RUNNER_TEMP
           $hashes = @{
             '1.6.4' = '1b5e85ce5cbd3c326fe5c1ceb36ec7347bc2f1042c598490ed550ecd2ecfeacd'
             '1.6.5' = $env:PARITY_CANDIDATE_SHA256
@@ -34,13 +35,18 @@ jobs:
             $file = Join-Path $env:RUNNER_TEMP "Parity-Setup-$version.exe"
             if ((Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash -ne $hashes[$version]) { throw "Unexpected installer hash for $version" }
           }
-      - name: Verify Windows lifecycle
+      - name: Install public 1.6.4 on the fresh runner
         shell: pwsh
-        run: ./verify-windows.ps1
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'Parity Update Test'
+          $process = Start-Process -FilePath (Join-Path $env:RUNNER_TEMP 'Parity-Setup-1.6.4.exe') -ArgumentList "/S /D=$path" -WindowStyle Hidden -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Installer exited with $($process.ExitCode)" }
+      - name: Exercise the installed app updater and restart
+        run: node verify-updater.cjs
       - name: Retain acceptance record
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: parity-1.6.5-windows-lifecycle
-          path: ${{ runner.temp }}/parity-lifecycle.json
+          name: parity-1.6.5-installed-updater
+          path: ${{ runner.temp }}/parity-installed-updater.json
           if-no-files-found: warn
