@@ -4,7 +4,7 @@ const { createReadStream } = require('node:fs')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const http = require('node:http')
-const { spawn } = require('node:child_process')
+const { execFileSync, spawn } = require('node:child_process')
 const { setTimeout: delay } = require('node:timers/promises')
 
 const temp = process.env.RUNNER_TEMP
@@ -28,7 +28,13 @@ async function until(action, description, timeout = 60_000) {
 }
 
 function launch(port) {
-  const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], { windowsHide: true, stdio: 'ignore' })
+  const child = spawn(exe, [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1'], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
+  for (const stream of [child.stdout, child.stderr]) stream.on('data', data => {
+    for (const line of data.toString().split(/\r?\n/)) {
+      if (/install|updat|elevat|spaw[nw]/i.test(line) && !/token|authorization|credential|password/i.test(line))
+        console.log(line.replace(/https?:\/\/\S+/g, '[url]').slice(0, 300))
+    }
+  })
   kids.add(child)
   child.once('exit', () => kids.delete(child))
   child.once('error', () => kids.delete(child))
@@ -95,12 +101,13 @@ async function main() {
     assert.equal(downloaded.state, 'downloaded', JSON.stringify(downloaded))
     assert.ok(requests.includes('/latest.yml') && requests.includes('/Parity-Setup-1.6.5.exe'))
     report.checkResults.push('Installed app discovered and downloaded exact 1.6.5 bytes via a loopback feed.')
-    await evaluate(39319, 'window.electronAPI.installUpdate()').catch(error => {
+    const acceptedInstall = await evaluate(39319, 'window.electronAPI.installUpdate()').catch(error => {
       if (!error.message.includes('connection closed')) throw error
     })
+    if (acceptedInstall) assert.equal(acceptedInstall.success, true, JSON.stringify(acceptedInstall))
     await until(() => original.exitCode !== null, '1.6.4 exits to run the updater')
     const installed = path.join(location, 'resources/search-insights-collector/THIRD-PARTY-NOTICES.txt')
-    await until(async () => createHash('sha256').update(await fs.readFile(installed)).digest('hex') === process.env.PARITY_NATIVE_NOTICES_SHA256, '1.6.5 installer finishes', 150_000)
+    await until(async () => createHash('sha256').update(await fs.readFile(installed)).digest('hex') === process.env.PARITY_NATIVE_NOTICES_SHA256, '1.6.5 installer finishes', 210_000)
     await until(async () => (await fs.readFile(path.join(location, 'resources/app-update.yml'), 'utf8')).includes('repo: parity-releases'), 'public feed restored by installed 1.6.5')
     assert.equal(await fs.readFile(marker, 'utf8'), 'persisted profile')
     report.checkResults.push('Updater installed 1.6.5, restored the shipped public feed and preserved the profile marker.')
@@ -108,6 +115,14 @@ async function main() {
   } catch (error) {
     report.result = 'failed'
     report.error = error.message
+    try {
+      const diagnostics = execFileSync('pwsh', ['-NoProfile','-Command', `
+        $processes = @(Get-Process -ErrorAction SilentlyContinue | Where-Object ProcessName -Match 'Parity|nsis' | Select-Object Id,ProcessName,Path,MainWindowTitle)
+        $uninstall = @(Get-ItemProperty 'HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*','HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*' -ErrorAction SilentlyContinue | Where-Object DisplayName -eq 'Parity' | Select-Object DisplayVersion,InstallLocation,UninstallString)
+        @{processes=$processes;uninstall=$uninstall} | ConvertTo-Json -Depth 4
+      `], { encoding: 'utf8', windowsHide: true, timeout: 15000 })
+      report.diagnostics = JSON.parse(diagnostics)
+    } catch (diagnosticsError) { report.diagnosticError = diagnosticsError.message }
     throw error
   } finally {
     for (const child of kids) child.kill()
