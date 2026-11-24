@@ -4,7 +4,8 @@ const { createReadStream } = require('node:fs')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 const http = require('node:http')
-const { execFileSync, spawn } = require('node:child_process')
+const { execFile, execFileSync, spawn } = require('node:child_process')
+const { promisify } = require('node:util')
 const { setTimeout: delay } = require('node:timers/promises')
 
 const temp = process.env.RUNNER_TEMP
@@ -102,8 +103,14 @@ async function main() {
     if (acceptedInstall) assert.equal(acceptedInstall.success, true, JSON.stringify(acceptedInstall))
     await until(() => original.exitCode !== null, '1.6.4 exits to run the updater')
     console.log('1.6.4 exited after the install request.')
+    const cachedInstaller = path.join(process.env.LOCALAPPDATA, 'parity-installed-updater-test', 'pending', 'Parity-Setup-1.6.5.exe')
+    const wizard = await promisify(execFile)('powershell.exe', ['-NoProfile', '-Sta', '-File', path.join(__dirname, 'complete-installer.ps1'), '-Installer', cachedInstaller], {
+      windowsHide: true, timeout: 114_000
+    })
+    report.wizard = JSON.parse(wizard.stdout)
+    console.log(JSON.stringify(report.wizard))
     const installed = path.join(location, 'resources/search-insights-collector/THIRD-PARTY-NOTICES.txt')
-    await until(async () => createHash('sha256').update(await fs.readFile(installed)).digest('hex') === process.env.PARITY_NATIVE_NOTICES_SHA256, '1.6.5 installer finishes', 100_000)
+    await until(async () => createHash('sha256').update(await fs.readFile(installed)).digest('hex') === process.env.PARITY_NATIVE_NOTICES_SHA256, '1.6.5 installed notices match', 50_000)
     await until(async () => (await fs.readFile(path.join(location, 'resources/app-update.yml'), 'utf8')).includes('repo: parity-releases'), 'public feed restored by installed 1.6.5')
     assert.equal(await fs.readFile(marker, 'utf8'), 'persisted profile')
     report.checkResults.push('Updater installed 1.6.5, restored the shipped public feed and preserved the profile marker.')
